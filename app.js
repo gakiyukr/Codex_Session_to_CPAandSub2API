@@ -22,6 +22,7 @@
           downloadOutput: document.querySelector("#download-output"),
           fileInput: document.querySelector("#file-input"),
           formatButtons: Array.from(document.querySelectorAll("[data-format]")),
+          generateOutput: document.querySelector("#generate-output"),
           input: document.querySelector("#session-input"),
           inputStatus: document.querySelector("#input-status"),
           issues: document.querySelector("#issues"),
@@ -469,6 +470,65 @@
           return collectSessionLikeObjects(parsed);
         }
 
+        function parseRawJson(text) {
+          if (typeof text !== "string" || text.trim() === "") {
+            return undefined;
+          }
+
+          try {
+            return JSON.parse(text);
+          } catch (error) {
+            throw new Error(`JSON 解析失败：${error.message}`);
+          }
+        }
+
+        function looksLikeSessionInput(value) {
+          return collectSessionLikeObjects(value).length > 0;
+        }
+
+        function looksLikeCpaInput(value) {
+          return collectCpaLikeObjects(value).some((item) => {
+            const record = item.value;
+            return isPlainObject(record) && firstNonEmpty(record.access_token, record.accessToken);
+          });
+        }
+
+        function looksLikeSub2apiInput(value) {
+          return collectSub2apiLikeObjects(value).some((item) => {
+            const record = item.value;
+            return isPlainObject(record)
+              && isPlainObject(record.credentials)
+              && firstNonEmpty(record.credentials.access_token);
+          });
+        }
+
+        function validateInputForCurrentMode(text) {
+          const parsed = parseRawJson(text);
+          if (parsed === undefined) {
+            return { ok: false, message: "等待输入。" };
+          }
+
+          if (state.format === "sub2api" || state.format === "cpa") {
+            return looksLikeSessionInput(parsed)
+              ? { ok: true }
+              : { ok: false, message: "当前模式需要 codex/session JSON 结构。" };
+          }
+
+          if (state.format === "cpa2sub2api") {
+            return looksLikeCpaInput(parsed)
+              ? { ok: true }
+              : { ok: false, message: "当前模式需要 CPA JSON 结构。" };
+          }
+
+          if (state.format === "sub2api2cpa") {
+            return looksLikeSub2apiInput(parsed)
+              ? { ok: true }
+              : { ok: false, message: "当前模式需要 sub2api JSON 结构。" };
+          }
+
+          return { ok: true };
+        }
+
         function convertCpaRecord(record, options = {}) {
           if (!isPlainObject(record)) {
             throw new Error("CPA 记录不是 JSON 对象");
@@ -912,7 +972,7 @@
             .join("");
         }
 
-        function scheduleConvert() {
+        function generateFromCurrentInput() {
           const text = elements.input.value;
           if (!text.trim()) {
             state.converted = [];
@@ -920,6 +980,17 @@
             state.sessions = [];
             updateOutput();
             setStatus(elements.inputStatus, "等待输入。");
+            return;
+          }
+
+          const validation = validateInputForCurrentMode(text);
+          if (!validation.ok) {
+            state.converted = [];
+            state.skipped = [];
+            state.sessions = [];
+            state.outputText = "";
+            updateOutput();
+            setStatus(elements.inputStatus, validation.message, "error");
             return;
           }
 
@@ -1050,14 +1121,15 @@
             }
           });
 
-          state.sessions = documents;
-          state.converted = converted;
-          state.skipped = convertSkipped;
           elements.input.value = documents.length === 1
             ? JSON.stringify(documents[0].value, null, 2)
             : JSON.stringify(documents.map((item) => item.value), null, 2);
+          state.sessions = [];
+          state.converted = [];
+          state.skipped = [];
+          state.outputText = "";
           updateOutput();
-          setStatus(elements.inputStatus, `读取 ${jsonFiles.length} 个文件，生成 ${converted.length} 个账号，跳过 ${convertSkipped.length} 项。`, converted.length ? "ok" : "error");
+          setStatus(elements.inputStatus, `已读取 ${jsonFiles.length} 个 JSON 文件，请点击生成。`, "ok");
         }
 
         elements.formatButtons.forEach((button) => {
@@ -1066,13 +1138,26 @@
             elements.formatButtons.forEach((item) => {
               item.setAttribute("aria-pressed", String(item === button));
             });
+            state.outputText = "";
+            state.converted = [];
+            state.skipped = [];
+            state.sessions = [];
             updateOutput();
+            setStatus(elements.inputStatus, "已切换模式，请点击生成。", "");
           });
         });
 
-        elements.input.addEventListener("input", scheduleConvert);
+        elements.input.addEventListener("input", () => {
+          state.outputText = "";
+          state.converted = [];
+          state.skipped = [];
+          state.sessions = [];
+          updateOutput();
+          setStatus(elements.inputStatus, elements.input.value.trim() ? "内容已更新，请点击生成。" : "等待输入。", "");
+        });
         elements.copyOutput.addEventListener("click", copyOutput);
         elements.downloadOutput.addEventListener("click", downloadOutput);
+        elements.generateOutput.addEventListener("click", generateFromCurrentInput);
         elements.pickFiles.addEventListener("click", () => elements.fileInput.click());
         elements.fileInput.addEventListener("change", (event) => {
           readFiles(event.target.files);
@@ -1081,13 +1166,23 @@
 
         elements.clearInput.addEventListener("click", () => {
           elements.input.value = "";
-          scheduleConvert();
+          state.outputText = "";
+          state.converted = [];
+          state.skipped = [];
+          state.sessions = [];
+          updateOutput();
+          setStatus(elements.inputStatus, "等待输入。", "");
         });
 
         elements.loadExample.addEventListener("click", () => {
           const example = MODE_EXAMPLES[state.format] || exampleCodexSession;
           elements.input.value = JSON.stringify(example, null, 2);
-          scheduleConvert();
+          state.outputText = "";
+          state.converted = [];
+          state.skipped = [];
+          state.sessions = [];
+          updateOutput();
+          setStatus(elements.inputStatus, "已填入示例结构，请点击生成。", "ok");
         });
 
         updateOutput();

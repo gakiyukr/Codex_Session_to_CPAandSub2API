@@ -127,6 +127,7 @@ function clickMode(formatButtons, format) {
 function testSyntheticIdTokenHasCodexParseableJwtFormat() {
   const { elements, formatButtons } = loadPageScript();
   const cpaButton = formatButtons.find((button) => button.dataset.format === "cpa");
+  const generate = elements.get("#generate-output");
   const input = elements.get("#session-input");
   const output = elements.get("#output");
 
@@ -145,6 +146,7 @@ function testSyntheticIdTokenHasCodexParseableJwtFormat() {
     sessionToken: "session-token",
   });
   dispatch(input, "input");
+  dispatch(generate, "click");
 
   const cpa = JSON.parse(output.value);
   const parts = cpa.id_token.split(".");
@@ -229,6 +231,7 @@ function testAxonHubAuthJsonPreservesRealRefreshToken() {
 function testCpaToSub2apiConvertsSingleCpaRecord() {
   const { elements, formatButtons } = loadPageScript();
   const modeButton = formatButtons.find((button) => button.dataset.format === "cpa2sub2api");
+  const generate = elements.get("#generate-output");
   const input = elements.get("#session-input");
   const output = elements.get("#output");
   const subtitle = elements.get("#output-subtitle");
@@ -246,6 +249,7 @@ function testCpaToSub2apiConvertsSingleCpaRecord() {
     expired: "2026-08-06T14:29:36.155Z",
   });
   dispatch(input, "input");
+  dispatch(generate, "click");
 
   const converted = JSON.parse(output.value);
 
@@ -265,6 +269,7 @@ function testCpaToSub2apiConvertsSingleCpaRecord() {
 function testCpaToSub2apiSkipsInvalidRecords() {
   const { elements, formatButtons } = loadPageScript();
   const modeButton = formatButtons.find((button) => button.dataset.format === "cpa2sub2api");
+  const generate = elements.get("#generate-output");
   const input = elements.get("#session-input");
   const output = elements.get("#output");
   const issues = elements.get("#issues");
@@ -284,6 +289,7 @@ function testCpaToSub2apiSkipsInvalidRecords() {
     },
   ]);
   dispatch(input, "input");
+  dispatch(generate, "click");
 
   const converted = JSON.parse(output.value);
 
@@ -295,6 +301,7 @@ function testCpaToSub2apiSkipsInvalidRecords() {
 function testSub2apiToCpaConvertsSingleAccount() {
   const { elements, formatButtons } = loadPageScript();
   const modeButton = formatButtons.find((button) => button.dataset.format === "sub2api2cpa");
+  const generate = elements.get("#generate-output");
   const input = elements.get("#session-input");
   const output = elements.get("#output");
   const subtitle = elements.get("#output-subtitle");
@@ -318,6 +325,7 @@ function testSub2apiToCpaConvertsSingleAccount() {
     },
   });
   dispatch(input, "input");
+  dispatch(generate, "click");
 
   const converted = JSON.parse(output.value);
 
@@ -336,6 +344,7 @@ function testSub2apiToCpaConvertsSingleAccount() {
 function testSub2apiToCpaConvertsDocumentAndSkipsInvalidAccounts() {
   const { elements, formatButtons } = loadPageScript();
   const modeButton = formatButtons.find((button) => button.dataset.format === "sub2api2cpa");
+  const generate = elements.get("#generate-output");
   const input = elements.get("#session-input");
   const output = elements.get("#output");
   const issues = elements.get("#issues");
@@ -381,6 +390,7 @@ function testSub2apiToCpaConvertsDocumentAndSkipsInvalidAccounts() {
     ],
   });
   dispatch(input, "input");
+  dispatch(generate, "click");
 
   const converted = JSON.parse(output.value);
 
@@ -427,6 +437,79 @@ function testLoadExampleUsesPerModeStructuresAndNoPlaceholder() {
   assert.equal(sub2apiToCpaInput.accounts[0].credentials.chatgpt_account_id, "00000000-0000-4000-9000-000000000000");
 }
 
+function testConversionRunsOnlyWhenGenerateButtonIsClicked() {
+  const { elements, formatButtons } = loadPageScript();
+  const input = elements.get("#session-input");
+  const loadExample = elements.get("#load-example");
+  const output = elements.get("#output");
+  const outputStatus = elements.get("#output-status");
+  const generate = elements.get("#generate-output");
+
+  input.value = JSON.stringify({
+    user: {
+      id: "user-example",
+      email: "mark@example.com",
+    },
+    expires: "2026-08-06T14:29:36.155Z",
+    account: {
+      id: "00000000-0000-4000-9000-000000000000",
+      planType: "plus",
+    },
+    accessToken: "access-token",
+    sessionToken: "session-token",
+  });
+
+  dispatch(input, "input");
+  assert.equal(output.value, "");
+
+  clickMode(formatButtons, "cpa2sub2api");
+  assert.equal(output.value, "");
+
+  dispatch(loadExample, "click");
+  assert.equal(output.value, "");
+  assert.notEqual(input.value, "");
+
+  dispatch(generate, "click");
+  assert.notEqual(output.value, "");
+  assert.notEqual(outputStatus.textContent, "");
+}
+
+function testGenerateValidatesInputAgainstCurrentMode() {
+  const { elements, formatButtons } = loadPageScript();
+  const input = elements.get("#session-input");
+  const output = elements.get("#output");
+  const issues = elements.get("#issues");
+  const inputStatus = elements.get("#input-status");
+  const generate = elements.get("#generate-output");
+
+  clickMode(formatButtons, "cpa2sub2api");
+  input.value = JSON.stringify({
+    exported_at: "2026-05-21T08:20:17.048Z",
+    proxies: [],
+    accounts: [
+      {
+        name: "mark@example.com",
+        platform: "openai",
+        type: "oauth",
+        credentials: {
+          access_token: "paste-real-access-token-here",
+          chatgpt_account_id: "00000000-0000-4000-9000-000000000000",
+          email: "mark@example.com",
+          expires_at: "2026-08-06T14:29:36.155Z",
+          plan_type: "plus",
+        },
+      },
+    ],
+  });
+
+  dispatch(input, "input");
+  dispatch(generate, "click");
+
+  assert.equal(output.value, "");
+  assert.match(inputStatus.textContent, /模式|格式|CPA/);
+  assert.equal(issues.textContent, "");
+}
+
 testSyntheticIdTokenHasCodexParseableJwtFormat();
 // testAxonHubAuthJsonUsesPlaceholderRefreshTokenWhenMissing();
 // testAxonHubAuthJsonPreservesRealRefreshToken();
@@ -435,4 +518,6 @@ testCpaToSub2apiSkipsInvalidRecords();
 testSub2apiToCpaConvertsSingleAccount();
 testSub2apiToCpaConvertsDocumentAndSkipsInvalidAccounts();
 testLoadExampleUsesPerModeStructuresAndNoPlaceholder();
+testConversionRunsOnlyWhenGenerateButtonIsClicked();
+testGenerateValidatesInputAgainstCurrentMode();
 console.log("convert-session tests passed");
