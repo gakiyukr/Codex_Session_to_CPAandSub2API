@@ -50,19 +50,19 @@ function createFakeElement(selector, options = {}) {
 }
 
 function loadPageScript() {
-  const htmlPath = path.join(__dirname, "..", "docs", "index.html");
+  const htmlPath = path.join(__dirname, "..", "index.html");
   const html = fs.readFileSync(htmlPath, "utf8");
   const cssHref = html.match(/<link\s+rel="stylesheet"\s+href="\.\/styles\.css"\s*\/?>/);
   const scriptSrc = html.match(/<script\s+src="\.\/app\.js"><\/script>/);
 
-  assert.ok(cssHref, "expected docs/index.html to reference ./styles.css");
-  assert.ok(scriptSrc, "expected docs/index.html to reference ./app.js");
+  assert.ok(cssHref, "expected index.html to reference ./styles.css");
+  assert.ok(scriptSrc, "expected index.html to reference ./app.js");
 
-  const scriptPath = path.join(__dirname, "..", "docs", "app.js");
+  const scriptPath = path.join(__dirname, "..", "app.js");
   const script = fs.readFileSync(scriptPath, "utf8");
 
   const elements = new Map();
-  const formatButtons = ["sub2api", "cpa", "cpa2sub2api"].map((format) =>
+  const formatButtons = ["sub2api", "cpa", "cpa2sub2api", "sub2api2cpa"].map((format) =>
     createFakeElement(`[data-format="${format}"]`, { dataset: { format } })
   );
 
@@ -107,7 +107,7 @@ function loadPageScript() {
     setTimeout,
   };
 
-  vm.runInNewContext(script, context, { filename: "docs/app.js" });
+  vm.runInNewContext(script, context, { filename: "app.js" });
 
   return { elements, formatButtons };
 }
@@ -285,9 +285,111 @@ function testCpaToSub2apiSkipsInvalidRecords() {
   assert.match(inputStatus.textContent, /跳过 1 项/);
 }
 
+function testSub2apiToCpaConvertsSingleAccount() {
+  const { elements, formatButtons } = loadPageScript();
+  const modeButton = formatButtons.find((button) => button.dataset.format === "sub2api2cpa");
+  const input = elements.get("#session-input");
+  const output = elements.get("#output");
+  const subtitle = elements.get("#output-subtitle");
+
+  dispatch(modeButton, "click");
+  input.value = JSON.stringify({
+    name: "mark@example.com",
+    platform: "openai",
+    type: "oauth",
+    credentials: {
+      access_token: "sub2-access-token",
+      chatgpt_account_id: "00000000-0000-4000-9000-000000000000",
+      email: "mark@example.com",
+      expires_at: "2026-08-06T14:29:36.155Z",
+      plan_type: "plus",
+    },
+    extra: {
+      name: "mark@example.com",
+      email: "mark@example.com",
+      last_refresh: "2026-05-21T08:00:00.000Z",
+    },
+  });
+  dispatch(input, "input");
+
+  const converted = JSON.parse(output.value);
+
+  assert.equal(subtitle.textContent, "当前输出为 sub2api 转 CPA 导入 JSON。");
+  assert.equal(converted.type, "codex");
+  assert.equal(converted.access_token, "sub2-access-token");
+  assert.equal(converted.account_id, "00000000-0000-4000-9000-000000000000");
+  assert.equal(converted.chatgpt_account_id, "00000000-0000-4000-9000-000000000000");
+  assert.equal(converted.email, "mark@example.com");
+  assert.equal(converted.plan_type, "plus");
+  assert.equal(converted.expired, "2026-08-06T14:29:36.155Z");
+  assert.equal(converted.last_refresh, "2026-05-21T08:00:00.000Z");
+  assert.equal(converted.id_token_synthetic, true);
+}
+
+function testSub2apiToCpaConvertsDocumentAndSkipsInvalidAccounts() {
+  const { elements, formatButtons } = loadPageScript();
+  const modeButton = formatButtons.find((button) => button.dataset.format === "sub2api2cpa");
+  const input = elements.get("#session-input");
+  const output = elements.get("#output");
+  const issues = elements.get("#issues");
+  const inputStatus = elements.get("#input-status");
+
+  dispatch(modeButton, "click");
+  input.value = JSON.stringify({
+    exported_at: "2026-05-21T08:00:00.000Z",
+    proxies: [],
+    accounts: [
+      {
+        name: "valid@example.com",
+        platform: "openai",
+        type: "oauth",
+        credentials: {
+          access_token: "valid-sub2-token",
+          chatgpt_account_id: "00000000-0000-4000-9000-000000000000",
+          email: "valid@example.com",
+          expires_at: "2026-08-06T14:29:36.155Z",
+          plan_type: "plus",
+        },
+      },
+      {
+        name: "second@example.com",
+        platform: "openai",
+        type: "oauth",
+        credentials: {
+          access_token: "second-sub2-token",
+          chatgpt_account_id: "11111111-1111-4111-9111-111111111111",
+          email: "second@example.com",
+          expires_at: "2026-09-06T14:29:36.155Z",
+          plan_type: "plus",
+        },
+      },
+      {
+        name: "invalid@example.com",
+        platform: "openai",
+        type: "oauth",
+        credentials: {
+          email: "invalid@example.com",
+        },
+      },
+    ],
+  });
+  dispatch(input, "input");
+
+  const converted = JSON.parse(output.value);
+
+  assert.equal(Array.isArray(converted), true);
+  assert.equal(converted.length, 2);
+  assert.equal(converted[0].email, "valid@example.com");
+  assert.equal(converted[1].email, "second@example.com");
+  assert.match(issues.innerHTML, /缺少 credentials\.access_token/);
+  assert.match(inputStatus.textContent, /跳过 1 项/);
+}
+
 testSyntheticIdTokenHasCodexParseableJwtFormat();
 // testAxonHubAuthJsonUsesPlaceholderRefreshTokenWhenMissing();
 // testAxonHubAuthJsonPreservesRealRefreshToken();
 testCpaToSub2apiConvertsSingleCpaRecord();
 testCpaToSub2apiSkipsInvalidRecords();
+testSub2apiToCpaConvertsSingleAccount();
+testSub2apiToCpaConvertsDocumentAndSkipsInvalidAccounts();
 console.log("convert-session tests passed");

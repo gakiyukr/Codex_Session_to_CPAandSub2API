@@ -125,8 +125,8 @@
 
       .segmented {
         display: inline-grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        width: min(520px, 100%);
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        width: min(700px, 100%);
         padding: 4px;
         border: 1px solid var(--line);
         border-radius: var(--radius);

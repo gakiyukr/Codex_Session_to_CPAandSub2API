@@ -1,7 +1,8 @@
       (() => {
         const OUTPUT_LABELS = {
-          sub2api: "sub2api",          /*
-          */
+          sub2api: "sub2api",
+          cpa: "CPA",
+          sub2api2cpa: "sub2api 转 CPA",
           cpa2sub2api: "CPA 转 sub2api",
         };
 
@@ -361,6 +362,30 @@
           }];
         }
 
+        function collectSub2apiLikeObjects(value, sourceName = "pasted-json") {
+          if (Array.isArray(value)) {
+            return value.map((item, index) => ({
+              value: item,
+              sourceName,
+              path: `$[${index}]`,
+            }));
+          }
+
+          if (isPlainObject(value) && Array.isArray(value.accounts)) {
+            return value.accounts.map((item, index) => ({
+              value: item,
+              sourceName,
+              path: `$.accounts[${index}]`,
+            }));
+          }
+
+          return [{
+            value,
+            sourceName,
+            path: "$",
+          }];
+        }
+
         function parseInputDocuments(text) {
           if (typeof text !== "string" || text.trim() === "") {
             return [];
@@ -375,6 +400,10 @@
 
           if (state.format === "cpa2sub2api") {
             return collectCpaLikeObjects(parsed);
+          }
+
+          if (state.format === "sub2api2cpa") {
+            return collectSub2apiLikeObjects(parsed);
           }
 
           return collectSessionLikeObjects(parsed);
@@ -442,6 +471,75 @@
                 last_refresh: lastRefresh,
               },
             }),
+          };
+        }
+
+        function convertSub2apiRecord(record, options = {}) {
+          if (!isPlainObject(record)) {
+            throw new Error("sub2api 账号不是 JSON 对象");
+          }
+
+          const credentials = isPlainObject(record.credentials) ? record.credentials : {};
+          const extra = isPlainObject(record.extra) ? record.extra : {};
+          const accessToken = firstNonEmpty(credentials.access_token, record.access_token, record.accessToken);
+          if (!accessToken) {
+            throw new Error("缺少 credentials.access_token");
+          }
+
+          const accountId = firstNonEmpty(
+            credentials.chatgpt_account_id,
+            record.account_id,
+            record.chatgpt_account_id,
+          );
+          if (!accountId) {
+            throw new Error("缺少 credentials.chatgpt_account_id");
+          }
+
+          const email = firstNonEmpty(credentials.email, extra.email, record.email);
+          const name = firstNonEmpty(record.name, extra.name, email, options.sourceName, "sub2api Account");
+          const planType = firstNonEmpty(credentials.plan_type, record.plan_type, record.chatgpt_plan_type);
+          const expiresAt = firstNonEmpty(
+            normalizeTimestamp(credentials.expires_at),
+            normalizeTimestamp(record.expired),
+            normalizeTimestamp(record.expires_at),
+          );
+          const exportedAt = normalizeTimestamp(options.now || new Date());
+          const lastRefresh = firstNonEmpty(
+            normalizeTimestamp(extra.last_refresh),
+            normalizeTimestamp(record.last_refresh),
+            exportedAt,
+          );
+          const userId = firstNonEmpty(credentials.chatgpt_user_id, record.user_id, record.chatgpt_user_id);
+          const refreshToken = firstNonEmpty(credentials.refresh_token, record.refresh_token) || "";
+          const sessionToken = firstNonEmpty(credentials.session_token, record.session_token);
+          const inputIdToken = firstNonEmpty(credentials.id_token, record.id_token);
+          const syntheticIdToken = !inputIdToken
+            ? buildSyntheticCodexIdToken(email, accountId, planType, userId, expiresAt)
+            : undefined;
+          const idToken = firstNonEmpty(inputIdToken, syntheticIdToken);
+
+          return {
+            sourceName: firstNonEmpty(options.sourceName, "pasted-json"),
+            sourcePath: options.sourcePath,
+            email,
+            name,
+            expiresAt,
+            cpa: Object.fromEntries(Object.entries({
+              type: "codex",
+              account_id: accountId,
+              chatgpt_account_id: accountId,
+              email,
+              name,
+              plan_type: planType,
+              chatgpt_plan_type: planType,
+              id_token: idToken,
+              id_token_synthetic: Boolean(syntheticIdToken) || undefined,
+              access_token: accessToken,
+              refresh_token: refreshToken,
+              session_token: sessionToken,
+              last_refresh: lastRefresh,
+              expired: expiresAt,
+            }).filter(([, value]) => value !== undefined && value !== null)),
           };
         }
 
@@ -628,8 +726,13 @@
             return state.converted.length === 1
               ? state.converted[0].cpa
               : state.converted.map((item) => item.cpa);
-          }/*
-*/
+          }
+
+          if (state.format === "sub2api2cpa") {
+            return state.converted.length === 1
+              ? state.converted[0].cpa
+              : state.converted.map((item) => item.cpa);
+          }
 
           return buildSub2apiDocument(state.converted, now);
         }
@@ -644,6 +747,12 @@
             try {
               if (state.format === "cpa2sub2api") {
                 converted.push(convertCpaRecord(item.value, {
+                  now,
+                  sourceName: item.sourceName,
+                  sourcePath: item.path || `$[${index}]`,
+                }));
+              } else if (state.format === "sub2api2cpa") {
+                converted.push(convertSub2apiRecord(item.value, {
                   now,
                   sourceName: item.sourceName,
                   sourcePath: item.path || `$[${index}]`,
@@ -855,6 +964,12 @@
             try {
               if (state.format === "cpa2sub2api") {
                 converted.push(convertCpaRecord(item.value, {
+                  now,
+                  sourceName: item.sourceName,
+                  sourcePath: item.path,
+                }));
+              } else if (state.format === "sub2api2cpa") {
+                converted.push(convertSub2apiRecord(item.value, {
                   now,
                   sourceName: item.sourceName,
                   sourcePath: item.path,
