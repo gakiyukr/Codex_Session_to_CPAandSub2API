@@ -10,6 +10,7 @@ token*.json
 tokens*.json
 auth*.json
 credentials*.json
+json/
 
 # Dependency/build output if the project grows later
 node_modules/
