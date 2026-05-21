@@ -117,6 +117,13 @@ function dispatch(element, type) {
   element.listeners[type]({ target: element });
 }
 
+function clickMode(formatButtons, format) {
+  const button = formatButtons.find((item) => item.dataset.format === format);
+  assert.ok(button, `missing format button for ${format}`);
+  dispatch(button, "click");
+  return button;
+}
+
 function testSyntheticIdTokenHasCodexParseableJwtFormat() {
   const { elements, formatButtons } = loadPageScript();
   const cpaButton = formatButtons.find((button) => button.dataset.format === "cpa");
@@ -385,6 +392,41 @@ function testSub2apiToCpaConvertsDocumentAndSkipsInvalidAccounts() {
   assert.match(inputStatus.textContent, /跳过 1 项/);
 }
 
+function testLoadExampleUsesPerModeStructuresAndNoPlaceholder() {
+  const { elements, formatButtons } = loadPageScript();
+  const input = elements.get("#session-input");
+  const loadExample = elements.get("#load-example");
+
+  assert.equal(input.attributes.placeholder, undefined);
+
+  clickMode(formatButtons, "sub2api");
+  dispatch(loadExample, "click");
+  const sub2apiInput = JSON.parse(input.value);
+  assert.equal(sub2apiInput.user.email, "mark@example.com");
+  assert.equal(sub2apiInput.account.planType, "plus");
+  assert.equal(typeof sub2apiInput.accessToken, "string");
+
+  clickMode(formatButtons, "cpa");
+  dispatch(loadExample, "click");
+  const cpaModeInput = JSON.parse(input.value);
+  assert.equal(cpaModeInput.user.email, "mark@example.com");
+  assert.equal(cpaModeInput.account.id, "00000000-0000-4000-9000-000000000000");
+
+  clickMode(formatButtons, "cpa2sub2api");
+  dispatch(loadExample, "click");
+  const cpaToSub2apiInput = JSON.parse(input.value);
+  assert.equal(cpaToSub2apiInput.type, "codex");
+  assert.equal(cpaToSub2apiInput.account_id, "00000000-0000-4000-9000-000000000000");
+  assert.equal(cpaToSub2apiInput.access_token, "paste-real-access-token-here");
+
+  clickMode(formatButtons, "sub2api2cpa");
+  dispatch(loadExample, "click");
+  const sub2apiToCpaInput = JSON.parse(input.value);
+  assert.equal(Array.isArray(sub2apiToCpaInput.accounts), true);
+  assert.equal(sub2apiToCpaInput.accounts[0].platform, "openai");
+  assert.equal(sub2apiToCpaInput.accounts[0].credentials.chatgpt_account_id, "00000000-0000-4000-9000-000000000000");
+}
+
 testSyntheticIdTokenHasCodexParseableJwtFormat();
 // testAxonHubAuthJsonUsesPlaceholderRefreshTokenWhenMissing();
 // testAxonHubAuthJsonPreservesRealRefreshToken();
@@ -392,4 +434,5 @@ testCpaToSub2apiConvertsSingleCpaRecord();
 testCpaToSub2apiSkipsInvalidRecords();
 testSub2apiToCpaConvertsSingleAccount();
 testSub2apiToCpaConvertsDocumentAndSkipsInvalidAccounts();
+testLoadExampleUsesPerModeStructuresAndNoPlaceholder();
 console.log("convert-session tests passed");

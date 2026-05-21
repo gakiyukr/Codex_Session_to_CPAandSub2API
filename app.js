@@ -35,19 +35,79 @@
           statFormat: document.querySelector("#stat-format"),
         };
 
-        const exampleSession = {
+        const exampleCodexSession = {
           user: {
             id: "user-example",
             email: "mark@example.com",
+            name: "Mark Example",
+            idp: "auth0",
+            iat: 1779329146,
+            mfa: false,
           },
           expires: "2026-08-06T14:29:36.155Z",
           account: {
             id: "00000000-0000-4000-9000-000000000000",
             planType: "plus",
+            structure: "personal",
           },
           accessToken: "paste-real-access-token-here",
           sessionToken: "paste-real-session-token-here",
           authProvider: "openai",
+          WARNING_BANNER: "DO NOT SHARE REAL TOKENS OR SESSION DATA.",
+        };
+
+        const exampleCpaInput = {
+          type: "codex",
+          account_id: "00000000-0000-4000-9000-000000000000",
+          chatgpt_account_id: "00000000-0000-4000-9000-000000000000",
+          email: "mark@example.com",
+          name: "mark@example.com",
+          plan_type: "plus",
+          chatgpt_plan_type: "plus",
+          id_token: "paste-real-id-token-here",
+          access_token: "paste-real-access-token-here",
+          refresh_token: "",
+          session_token: "paste-real-session-token-here",
+          last_refresh: "2026-05-21T08:18:37.564Z",
+          expired: "2026-08-06T14:29:36.155Z",
+        };
+
+        const exampleSub2apiInput = {
+          exported_at: "2026-05-21T08:20:17.048Z",
+          proxies: [],
+          accounts: [
+            {
+              name: "mark@example.com",
+              platform: "openai",
+              type: "oauth",
+              concurrency: 10,
+              priority: 1,
+              credentials: {
+                access_token: "paste-real-access-token-here",
+                chatgpt_account_id: "00000000-0000-4000-9000-000000000000",
+                chatgpt_user_id: "user-example",
+                email: "mark@example.com",
+                expires_at: "2026-08-06T14:29:36.155Z",
+                expires_in: 86400,
+                plan_type: "plus",
+              },
+              extra: {
+                email: "mark@example.com",
+                email_key: "mark_example_com",
+                name: "mark@example.com",
+                auth_provider: "openai",
+                source: "chatgpt_web_session",
+                last_refresh: "2026-05-21T08:18:37.564Z",
+              },
+            },
+          ],
+        };
+
+        const MODE_EXAMPLES = {
+          sub2api: exampleCodexSession,
+          cpa: exampleCodexSession,
+          cpa2sub2api: exampleCpaInput,
+          sub2api2cpa: exampleSub2apiInput,
         };
 
         const AXONHUB_PLACEHOLDER_REFRESH_TOKEN = "__missing_refresh_token__";
@@ -1025,7 +1085,8 @@
         });
 
         elements.loadExample.addEventListener("click", () => {
-          elements.input.value = JSON.stringify(exampleSession, null, 2);
+          const example = MODE_EXAMPLES[state.format] || exampleCodexSession;
+          elements.input.value = JSON.stringify(example, null, 2);
           scheduleConvert();
         });
 

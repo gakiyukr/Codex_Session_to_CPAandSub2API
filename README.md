@@ -1,10 +1,17 @@
-# ChatGPT Session to CPA / sub2api / Cockpit / 9router / AxonHub
+# ChatGPT Session to CPA / sub2api
+# CPA to sub2api / sub2api to CPA
+
+[![Netlify Status](https://api.netlify.com/api/v1/badges/736e9067-6dfc-4c6b-b877-8282bc483cf9/deploy-status)](https://app.netlify.com/projects/chic-marigold-1f6db0/deploys)
 
 纯前端单页面工具，用来把 ChatGPT Web 登录 session JSON 转换成 CPA、sub2api、Cockpit Tools、9router 或 AxonHub 可导入 JSON。
 
+
+
 ## 在线使用
 
-### [**》》 点我直接使用 《《**](https://gtxx3600.github.io/GPTSession2CPAandSub2API/)
+### [》》 点我直接使用 《《](https://chic-marigold-1f6db0.netlify.app/)
+
+
 
 ## 使用提示
 
