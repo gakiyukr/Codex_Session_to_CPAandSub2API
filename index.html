@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ChatGPT Session -> CPA / sub2api / Cockpit / AxonHub</title>
+    <meta name="theme-color" content="#24505a" />
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" sizes="any" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="topbar">
+        <div class="title-block">
+          <p class="eyebrow">Local JSON Converter</p>
+          <h1>ChatGPT Session Converter</h1>
+        </div>
+        <div class="meta-row" aria-label="处理方式">
+          <a
+            class="github-link"
+            href="https://github.com/gtxx3600/GPTSession2CPAandSub2API"
+            target="_blank"
+            rel="noreferrer"
+            aria-label="本页面代码开源"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.44 9.8 8.21 11.39.6.11.82-.26.82-.58v-2.24c-3.34.73-4.04-1.42-4.04-1.42-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.73.08-.73 1.21.08 1.85 1.24 1.85 1.24 1.07 1.84 2.81 1.31 3.5 1 .11-.78.42-1.31.76-1.61-2.66-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23A11.5 11.5 0 0 1 12 5.78c1.02 0 2.05.14 3.01.41 2.29-1.55 3.3-1.23 3.3-1.23.66 1.66.24 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.63-5.49 5.93.43.37.82 1.1.82 2.22v3.3c0 .32.22.7.83.58A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12Z" />
+            </svg>
+            <span>本页面代码开源</span>
+          </a>
+        </div>
+      </header>
+
+      <section class="toolbar" aria-label="输出控制">
+        <div class="segmented" role="group" aria-label="输出格式">
+          <button type="button" data-format="sub2api" aria-pressed="true">sub2api</button>
+          <button type="button" data-format="cpa" aria-pressed="false">CPA</button>
+          <!--
+          <button type="button" data-format="cockpit" aria-pressed="false">Cockpit</button>
+          <button type="button" data-format="9router" aria-pressed="false">9router</button>
+          <button type="button" data-format="axonhub" aria-pressed="false">AxonHub</button>
+          -->
+          <button type="button" data-format="cpa2sub2api" aria-pressed="false">CPA -&gt; sub2api</button>
+        </div>
+        <div class="actions">
+          <button class="button button-secondary" id="copy-output" type="button" disabled>复制输出</button>
+          <button class="button button-primary" id="download-output" type="button" disabled>下载 JSON</button>
+        </div>
+      </section>
+
+      <section class="workspace">
+        <section class="panel" aria-labelledby="input-title">
+          <div class="panel-head">
+            <div>
+              <h2 id="input-title">Session JSON</h2>
+              <p>粘贴 ChatGPT Web session，或拖入一个或多个 JSON 文件。</p>
+            </div>
+          </div>
+          <div class="panel-body">
+            <div class="session-guide">
+              <strong>Session 数据从这里获取</strong>
+              <p>
+                先在浏览器登录 ChatGPT，然后打开
+                <a href="https://chatgpt.com/api/auth/session" target="_blank" rel="noreferrer">https://chatgpt.com/api/auth/session</a>
+                ，复制页面显示的整段 JSON，粘贴到下方输入框。
+              </p>
+              <p class="session-warning">这段 JSON 包含 accessToken 和 sessionToken，等同敏感登录凭证，不要发给别人。</p>
+            </div>
+            <input class="hidden" id="file-input" type="file" accept=".json,application/json" multiple />
+            <div class="input-actions">
+              <button class="button button-secondary" id="pick-files" type="button">选择文件</button>
+              <button class="button button-secondary" id="load-example" type="button">填入示例结构</button>
+              <button class="button button-ghost" id="clear-input" type="button">清空</button>
+            </div>
+            <textarea
+              id="session-input"
+              spellcheck="false"
+              placeholder='{"user":{"email":"mark@example.com"},"expires":"2026-08-06T14:29:36.155Z","account":{"id":"...","planType":"plus"},"accessToken":"...","sessionToken":"..."}'
+            ></textarea>
+            <div class="status-line" id="input-status">等待输入。</div>
+          </div>
+        </section>
+
+        <section class="panel" aria-labelledby="output-title">
+          <div class="panel-head">
+            <div>
+              <h2 id="output-title">转换结果</h2>
+              <p id="output-subtitle">当前输出为 sub2api 导入 JSON。</p>
+            </div>
+          </div>
+          <div class="panel-body">
+            <p class="notice" id="cpa-notice">
+              ChatGPT Web session 一般没有 `refresh_token`；缺少真实 `id_token` 时会构造 Codex 可解析的占位 JWT claims。AxonHub 缺少真实 `refresh_token` 时会写入占位值，access token 过期后不能自动刷新。
+            </p>
+            <div class="summary" aria-label="转换统计">
+              <div class="stat">
+                <div class="stat-value" id="stat-count">0</div>
+                <div class="stat-label">账号数</div>
+              </div>
+              <div class="stat">
+                <div class="stat-value" id="stat-format">sub2api</div>
+                <div class="stat-label">输出格式</div>
+              </div>
+              <div class="stat">
+                <div class="stat-value" id="stat-errors">0</div>
+                <div class="stat-label">跳过项</div>
+              </div>
+            </div>
+            <div class="accounts" aria-label="账号预览">
+              <table>
+                <colgroup>
+                  <col class="col-name" />
+                  <col class="col-email" />
+                  <col class="col-expiry" />
+                  <col class="col-type" />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>名称</th>
+                    <th>邮箱</th>
+                    <th>过期时间</th>
+                    <th>来源</th>
+                  </tr>
+                </thead>
+                <tbody id="account-body">
+                  <tr>
+                    <td colspan="4" class="empty">暂无可转换账号。</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="issues" id="issues"></div>
+            <textarea id="output" readonly spellcheck="false" placeholder="转换后会显示 JSON。"></textarea>
+            <div class="status-line" id="output-status">暂无输出。</div>
+          </div>
+        </section>
+      </section>
+    </main>
+    <script src="./app.js"></script>
+  </body>
+</html>
