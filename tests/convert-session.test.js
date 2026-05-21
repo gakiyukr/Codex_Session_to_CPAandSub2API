@@ -52,14 +52,12 @@ function createFakeElement(selector, options = {}) {
 function loadPageScript() {
   const htmlPath = path.join(__dirname, "..", "index.html");
   const html = fs.readFileSync(htmlPath, "utf8");
-  const cssHref = html.match(/<link\s+rel="stylesheet"\s+href="\.\/styles\.css"\s*\/?>/);
-  const scriptSrc = html.match(/<script\s+src="\.\/app\.js"><\/script>/);
+  const styleMatch = html.match(/<style>\s*([\s\S]*?)\s*<\/style>/);
+  const scriptMatch = html.match(/<script>\s*([\s\S]*?)\s*<\/script>\s*<\/body>/);
 
-  assert.ok(cssHref, "expected index.html to reference ./styles.css");
-  assert.ok(scriptSrc, "expected index.html to reference ./app.js");
-
-  const scriptPath = path.join(__dirname, "..", "app.js");
-  const script = fs.readFileSync(scriptPath, "utf8");
+  assert.ok(styleMatch, "expected index.html to contain inline styles");
+  assert.ok(scriptMatch, "expected index.html to contain one inline script");
+  const script = scriptMatch[1];
 
   const elements = new Map();
   const formatButtons = ["sub2api", "cpa", "cpa2sub2api", "sub2api2cpa"].map((format) =>
@@ -107,7 +105,7 @@ function loadPageScript() {
     setTimeout,
   };
 
-  vm.runInNewContext(script, context, { filename: "app.js" });
+  vm.runInNewContext(script, context, { filename: "index.html" });
 
   return { elements, formatButtons };
 }
